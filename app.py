@@ -40,7 +40,7 @@ def get_product():
         "target_currency": "EUR",
         "target_language": "ES",
         "tracking_id": TRACKING_ID,
-        "fields": "product_id,product_title,target_sale_price,evaluate_rate,lastest_volume,product_main_image_url,product_detail_url,ship_to_days"
+        "fields": "product_id,product_title,target_sale_price,evaluate_rate,lastest_volume,product_main_image_url,product_detail_url,ship_to_days,promotion_link"
     }
 
     params["sign"] = generate_sign(params, APP_SECRET)
@@ -53,7 +53,8 @@ def get_product():
         )
         data = response.json()
 
-        result = data.get("aliexpress_affiliate_productdetail_get_response", {}).get("result", {})
+        resp_result = data.get("aliexpress_affiliate_productdetail_get_response", {}).get("resp_result", {})
+        result = resp_result.get("result", {})
         products = result.get("products", {}).get("product", [])
 
         if not products:
@@ -61,52 +62,24 @@ def get_product():
 
         product = products[0]
 
-        affiliate_params = {
-            "app_key": APP_KEY,
-            "method": "aliexpress.affiliate.link.generate",
-            "sign_method": "md5",
-            "timestamp": time.strftime("%Y-%m-%d %H:%M:%S"),
-            "format": "json",
-            "v": "2.0",
-            "promotion_link_type": "0",
-            "source_values": product.get("product_detail_url", ""),
-            "tracking_id": TRACKING_ID
-        }
-        affiliate_params["sign"] = generate_sign(affiliate_params, APP_SECRET)
-
-        affiliate_response = requests.post(
-            "https://api-sg.aliexpress.com/sync",
-            data=affiliate_params,
-            headers={"Content-Type": "application/x-www-form-urlencoded"}
-        )
-        affiliate_data = affiliate_response.json()
-        affiliate_links = (
-            affiliate_data
-            .get("aliexpress_affiliate_link_generate_response", {})
-            .get("result", {})
-            .get("promotion_links", {})
-            .get("promotion_link", [])
-        )
-        affiliate_link = affiliate_links[0].get("promotion_link", "") if affiliate_links else ""
-
         price_raw = product.get("target_sale_price", "0")
         try:
-            price = float(price_raw.replace("US $", "").replace("EUR", "").replace("€", "").strip())
+            price = float(str(price_raw).replace("US $", "").replace("EUR", "").replace("€", "").strip())
         except Exception:
             price = 0.0
 
-        free_shipping = "Yes" if product.get("ship_to_days") == "0" else "No"
+        free_shipping = "Yes" if str(product.get("ship_to_days", "1")) == "0" else "No"
 
         return jsonify({
             "product_id": product.get("product_id"),
             "product_name": product.get("product_title"),
             "price_eur": round(price, 2),
             "free_shipping": free_shipping,
-            "rating": product.get("evaluate_rate", "").replace("%", ""),
+            "rating": str(product.get("evaluate_rate", "")).replace("%", ""),
             "orders": product.get("lastest_volume"),
             "image_url": product.get("product_main_image_url"),
             "aliexpress_link": product.get("product_detail_url"),
-            "affiliate_link": affiliate_link
+            "affiliate_link": product.get("promotion_link", "")
         })
 
     except Exception as e:
