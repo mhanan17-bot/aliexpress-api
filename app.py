@@ -1,9 +1,7 @@
 from flask import Flask, request, jsonify
 import hashlib
-import hmac
 import time
 import requests
-import json
 import os
 
 app = Flask(__name__)
@@ -12,14 +10,15 @@ APP_KEY = os.environ.get("ALIEXPRESS_APP_KEY")
 APP_SECRET = os.environ.get("ALIEXPRESS_APP_SECRET")
 TRACKING_ID = os.environ.get("ALIEXPRESS_TRACKING_ID", "default")
 
+
 def generate_sign(params, secret):
-    """Generate HMAC-MD5 signature for AliExpress API"""
     sorted_params = sorted(params.items())
     sign_string = secret
     for key, value in sorted_params:
         sign_string += key + str(value)
     sign_string += secret
     return hashlib.md5(sign_string.encode("utf-8")).hexdigest().upper()
+
 
 @app.route("/product", methods=["GET"])
 def get_product():
@@ -40,7 +39,7 @@ def get_product():
         "target_currency": "EUR",
         "target_language": "ES",
         "tracking_id": TRACKING_ID,
-        "fields": "product_id,product_title,target_sale_price,target_original_price,evaluate_rate,lastest_volume,product_main_image_url,product_detail_url,ship_to_days,relevant_market_commission_rate"
+        "fields": "product_id,product_title,target_sale_price,evaluate_rate,lastest_volume,product_main_image_url,product_detail_url,ship_to_days"
     }
 
     params["sign"] = generate_sign(params, APP_SECRET)
@@ -57,11 +56,10 @@ def get_product():
         products = result.get("products", {}).get("product", [])
 
         if not products:
-    return jsonify({"error": "Product not found", "raw_response": data}), 404
+            return jsonify({"error": "Product not found", "raw_response": data}), 404
 
         product = products[0]
 
-        # Generate affiliate link
         affiliate_params = {
             "app_key": APP_KEY,
             "method": "aliexpress.affiliate.link.generate",
@@ -81,10 +79,21 @@ def get_product():
             headers={"Content-Type": "application/x-www-form-urlencoded"}
         )
         affiliate_data = affiliate_response.json()
-        affiliate_links = affiliate_data.get("aliexpress_affiliate_link_generate_response", {}).get("result", {}).get("promotion_links", {}).get("promotion_link", [])
+        affiliate_links = (
+            affiliate_data
+            .get("aliexpress_affiliate_link_generate_response", {})
+            .get("result", {})
+            .get("promotion_links", {})
+            .get("promotion_link", [])
+        )
         affiliate_link = affiliate_links[0].get("promotion_link", "") if affiliate_links else ""
 
-        price = float(product.get("target_sale_price", "0").replace("US $", "").replace("€", "").strip())
+        price_raw = product.get("target_sale_price", "0")
+        try:
+            price = float(price_raw.replace("US $", "").replace("EUR", "").replace("€", "").strip())
+        except Exception:
+            price = 0.0
+
         free_shipping = "Yes" if product.get("ship_to_days") == "0" else "No"
 
         return jsonify({
@@ -102,9 +111,11 @@ def get_product():
     except Exception as e:
         return jsonify({"error": str(e)}), 500
 
+
 @app.route("/health", methods=["GET"])
 def health():
     return jsonify({"status": "ok"})
+
 
 if __name__ == "__main__":
     port = int(os.environ.get("PORT", 5000))
