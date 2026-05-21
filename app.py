@@ -3,6 +3,7 @@ import hashlib
 import time
 import requests
 import os
+import urllib.request
 
 app = Flask(__name__)
 
@@ -114,7 +115,11 @@ def get_product():
 
 @app.route("/health", methods=["GET"])
 def health():
-    return jsonify({"status": "ok"})
+    try:
+        external_ip = urllib.request.urlopen("https://api.ipify.org").read().decode("utf8")
+    except Exception:
+        external_ip = "unknown"
+    return jsonify({"status": "ok", "server_ip": external_ip})
 
 
 if __name__ == "__main__":
