@@ -57,7 +57,7 @@ def get_product():
         products = result.get("products", {}).get("product", [])
 
         if not products:
-            return jsonify({"error": "Product not found"}), 404
+    return jsonify({"error": "Product not found", "raw_response": data}), 404
 
         product = products[0]
 
