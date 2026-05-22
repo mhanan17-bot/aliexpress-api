@@ -40,7 +40,7 @@ def get_product():
         "target_currency": "EUR",
         "target_language": "ES",
         "tracking_id": TRACKING_ID,
-        "fields": "product_id,product_title,target_sale_price,evaluate_rate,lastest_volume,product_main_image_url,product_detail_url,ship_to_days,promotion_link"
+        "fields": "product_id,product_title,target_sale_price,evaluate_rate,lastest_volume,product_main_image_url,product_detail_url,ship_to_days,promotion_link,logistics_services_desc"
     }
 
     params["sign"] = generate_sign(params, APP_SECRET)
@@ -68,7 +68,14 @@ def get_product():
         except Exception:
             price = 0.0
 
-        free_shipping = "Yes" if str(product.get("ship_to_days", "1")) == "0" else "No"
+        # Better free shipping detection
+        ship_to_days = str(product.get("ship_to_days", "")).strip()
+        logistics_desc = str(product.get("logistics_services_desc", "")).lower()
+        
+        if ship_to_days == "0" or "free" in logistics_desc or "gratis" in logistics_desc or "gratuito" in logistics_desc:
+            free_shipping = "Yes"
+        else:
+            free_shipping = "No"
 
         return jsonify({
             "product_id": product.get("product_id"),
@@ -79,7 +86,9 @@ def get_product():
             "orders": product.get("lastest_volume"),
             "image_url": product.get("product_main_image_url"),
             "aliexpress_link": product.get("product_detail_url"),
-            "affiliate_link": product.get("promotion_link", "")
+            "affiliate_link": product.get("promotion_link", ""),
+            "ship_to_days_raw": ship_to_days,
+            "logistics_desc_raw": product.get("logistics_services_desc", "")
         })
 
     except Exception as e:
